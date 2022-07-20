@@ -10,6 +10,48 @@ import sys
 display_image = True
 
 
+class LaneFollower(object):
+
+    def __init__(self, robot=None):
+        logging.info('Creating a LineFollower robot...')
+        self.robot = robot
+
+    def follow_lane(self, frame):
+        # Main entry point of the lane follower
+        show_image("initial image", frame)
+
+        lane_lines, frame = detect_lane(frame)
+        final_frame = self.move(frame, lane_lines)
+
+        return final_frame
+
+    def move(self, frame, lane_lines):
+        # After detecting the lanes move robot based on the final_frame from follow_lane function
+        if len(lane_lines) == 0:
+            logging.error('No lane lines detected, nothing to do.')
+            return frame
+
+        heading_angle = compute_heading_angle(frame, lane_lines)
+        # self.curr_steering_angle = stabilize_steering_angle(self.curr_steering_angle, steering_angle, len(lane_lines))
+
+        if self.robot is not None:
+            # Here let's define that between 80 and 100 degrees it is more stabilized to make the robot go forward
+            if heading_angle < 80:  # 90-10
+                control_robot.turn_left(1)
+                logging.info('robot turning left')
+            elif heading_angle > 100:  # 90+10
+                control_robot.turn_right(1)
+                logging.info('robot turning right')
+            else:
+                control_robot.go_straight_with_speed(20)
+                logging.info('robot goes straight')
+
+        current_heading_image = display_heading_line(frame, heading_angle)  # this considers the not stabilized angles
+        show_image("heading", current_heading_image)
+
+        return current_heading_image
+
+
 def detect_lane(frame):
     """
     This function is used for processing the current frame, detecting the Blue lane lines and generating the lanes image
@@ -35,13 +77,13 @@ def detect_lane(frame):
 
     return lane_lines, lane_lines_image
 
+
 def detect_edges(frame):
     """
     This function is used for detecting the blue coloured edges, which are the lanes.
     For this we will use the HSV color parameter as it is is easier to represent a color in HSV than in RGB.
     At the end we use the Canny mask for the edge detection based on the range specified.
     """
-
     # filter for blue lane lines
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     show_image("hsv", hsv)
@@ -54,6 +96,7 @@ def detect_edges(frame):
     edges = cv2.Canny(mask, 100, 200)  # or (mask,200,400)
 
     return edges
+
 
 def define_region_of_interest(canny):
     """
@@ -76,6 +119,7 @@ def define_region_of_interest(canny):
     masked_image = cv2.bitwise_and(canny, mask)
     return masked_image
 
+
 def detect_line_segments(cropped_edges):
     """
     This function is used for detecting the line segments by applying the Probabilistic Hough Line Transform. Some
@@ -96,6 +140,7 @@ def detect_line_segments(cropped_edges):
             logging.debug("%s of length %s" % (line_segment, length_of_line_segment(line_segment[0])))
 
     return line_segments
+
 
 def find_average_slope_and_intercept(frame, line_segments):
     """
@@ -144,6 +189,7 @@ def find_average_slope_and_intercept(frame, line_segments):
     logging.debug('lane lines: %s' % lane_lines)
     return lane_lines
 
+
 def compute_heading_angle(frame, lane_lines):
     """
     This function calculates the angle on which the robot has to be heading to in order to be on the middle of the path.
@@ -180,6 +226,7 @@ def compute_heading_angle(frame, lane_lines):
     logging.debug('new heading angle: %s' % heading_angle)
 
     return heading_angle
+
 
 def display_lines(frame, lines, line_color=(0, 255, 0), line_width=10):
     """
@@ -219,6 +266,7 @@ def display_heading_line(frame, heading_angle, line_color=(0, 0, 255), line_widt
 
     return heading_image
 
+
 def length_of_line_segment(line):
     """
     This is a helper function to calculate the length of a line segment by using pythagoras theorem.
@@ -252,4 +300,21 @@ def make_points(frame, line):
     x2 = int((y2 - intercept) / slope)
     return [[x1, y1, x2, y2]]
 
+
+def test_photo(file):
+    """
+    This function is used for testing purpose where we can specify a photo and test the image processing
+    """
+    land_follower = LaneFollower()
+    frame = cv2.imread(file)
+    combo_image = land_follower.follow_lane(frame)
+    show_image('final', combo_image, True)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
+
+    test_photo('test_lane_blue4.jpg')
 
